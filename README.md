@@ -1,9 +1,10 @@
 # DB-management-Service
-# PetCarePlus – Setup & Run Instructions (All-In-One Document)
+# PetCarePlus – Setup & Run Instructions
 
 PetCarePlus is a Node.js, Express, and MySQL application for managing veterinary clinic data. This document contains EVERYTHING required to set up the database, configure the environment, install dependencies, start the server, and log in — all in one place.
 
 --------------------------------------------------------------------
+
 How to run
 
 --------------------------------------------------------------------
@@ -56,7 +57,7 @@ INSERT INTO user_accounts VALUES ('admin@example.com', 'admin');
 
 --------------------------------------------------------------------
 
-Create a file named **.env** in the project root and paste this EXACTLY:
+Create a file named *.env* in the project root and paste this EXACTLY:
 
 DB_HOST=localhost
 DB_USER=root
