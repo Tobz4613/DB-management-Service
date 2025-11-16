@@ -97,7 +97,6 @@ You can now use the dashboard to manage:
 - Owners
 - Pets
 - Appointments
-Clicking a row loads the data into the form for editing.
 
 --------------------------------------------------------------------
 
