@@ -29,6 +29,7 @@ app.use(
   })
 );
 app.use(express.static(path.join(__dirname, "frontend")));
+
 // ---------------- MySQL connection pool ----------------
 
 const db = mysql.createPool({
@@ -557,6 +558,186 @@ app.delete("/api/appointments/:id", requireRole("admin"), (req, res) => {
       return res.status(404).json({ error: "Appointment not found" });
     }
     res.json({ message: "Appointment deleted" });
+  });
+});
+
+// ---------- Phase III: Visualization - Appointments per Month ----------
+
+app.get("/api/stats/appointments-per-month", requireLogin, (req, res) => {
+  const sql = `
+    SELECT 
+      DATE_FORMAT(appointment_date, '%Y-%m') AS month,
+      COUNT(*) AS count
+    FROM Appointment
+    GROUP BY month
+    ORDER BY month;
+  `;
+
+  db.query(sql, (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/stats/appointments-per-month:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+// ---------- Phase III: Views (based on Phase II Part C) ----------
+
+app.get("/api/views/upcoming-appointments", requireLogin, (req, res) => {
+  db.query("SELECT * FROM UpcomingAppointments", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/upcoming-appointments:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/top-cost-vets", requireLogin, (req, res) => {
+  db.query("SELECT * FROM TopCostVets", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/top-cost-vets:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/owner-pet-counts", requireLogin, (req, res) => {
+  db.query("SELECT * FROM OwnerPetCounts", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/owner-pet-counts:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/full-appointment-summary", requireLogin, (req, res) => {
+  db.query("SELECT * FROM FullAppointmentSummary", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/full-appointment-summary:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/active-pets", requireLogin, (req, res) => {
+  db.query("SELECT * FROM ActivePets", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/active-pets:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/top-medications", requireLogin, (req, res) => {
+  db.query("SELECT * FROM TopMedications", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/top-medications:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/multi-service-pets", requireLogin, (req, res) => {
+  db.query("SELECT * FROM MultiServicePets", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/multi-service-pets:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/multi-pet-owners", requireLogin, (req, res) => {
+  db.query("SELECT * FROM MultiPetOwners", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/multi-pet-owners:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/avg-treatment-cost-per-vet", requireLogin, (req, res) => {
+  db.query("SELECT * FROM AvgTreatmentCostPerVet", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/avg-treatment-cost-per-vet:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+app.get("/api/views/inactive-pets", requireLogin, (req, res) => {
+  db.query("SELECT * FROM InactivePets", (err, rows) => {
+    if (err) {
+      console.error("DB error in /api/views/inactive-pets:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+// ---------- Search & Filter endpoints ----------
+
+// Owners search by name/email (single q param)
+app.get("/api/owners/search", requireLogin, (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) {
+    return res.json([]);
+  }
+
+  const like = `%${q}%`;
+  const sql = `
+    SELECT *
+    FROM Owner
+    WHERE first_name LIKE ? 
+       OR last_name LIKE ?
+       OR email LIKE ?
+  `;
+  db.query(sql, [like, like, like], (err, rows) => {
+    if (err) {
+      console.error("DB error in GET /api/owners/search:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
+  });
+});
+
+// Appointments filter by status and/or date range
+app.get("/api/appointments/search", requireLogin, (req, res) => {
+  const { status, from, to } = req.query;
+
+  let sql = "SELECT * FROM Appointment WHERE 1=1";
+  const params = [];
+
+  if (status) {
+    sql += " AND status = ?";
+    params.push(status);
+  }
+  if (from) {
+    sql += " AND appointment_date >= ?";
+    params.push(from);
+  }
+  if (to) {
+    sql += " AND appointment_date <= ?";
+    params.push(to);
+  }
+
+  sql += " ORDER BY appointment_date, appointment_time";
+
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.error("DB error in GET /api/appointments/search:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(rows);
   });
 });
 

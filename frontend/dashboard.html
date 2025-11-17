@@ -15,12 +15,29 @@
     <button class="tab-btn active" data-target="owners-section">Owners</button>
     <button class="tab-btn" data-target="pets-section">Pets</button>
     <button class="tab-btn" data-target="appointments-section">Appointments</button>
+    <button class="tab-btn" data-target="views-section">Views</button>
+    <button class="tab-btn" data-target="analytics-section">Analytics</button>
   </div>
 
   <main>
     <!-- OWNERS -->
     <section id="owners-section" class="tab-section active">
       <h2>Owners</h2>
+      <form id="owner-search-form" class="inline-form">
+    <input
+      type="text"
+      id="owner-search-q"
+      placeholder="Search owners (name or email)"
+    />
+    <button type="submit" class="btn btn-outline">Search</button>
+    <button type="button" id="owner-search-clear" class="btn btn-outline">
+      Clear
+    </button>
+  </form>
+
+  <button id="export-owners-btn" class="btn btn-outline">
+    Export Owners CSV
+  </button>
 
       <div class="grid">
         <div>
@@ -141,6 +158,30 @@
     <section id="appointments-section" class="tab-section">
       <h2>Appointments</h2>
 
+      <form id="appointment-search-form" class="inline-form">
+    <label>
+      Status
+      <select id="appt-search-status">
+        <option value="">Any</option>
+        <option value="Scheduled">Scheduled</option>
+        <option value="Completed">Completed</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    </label>
+    <label>
+      From
+      <input type="date" id="appt-search-from" />
+    </label>
+    <label>
+      To
+      <input type="date" id="appt-search-to" />
+    </label>
+    <button type="submit" class="btn btn-outline">Filter</button>
+    <button type="button" id="appt-search-clear" class="btn btn-outline">
+      Clear
+    </button>
+  </form>
+
       <div class="grid">
         <div>
           <h3>Appointment List</h3>
@@ -203,10 +244,63 @@
         </div>
       </div>
     </section>
+
+    <!-- ANALYTICS: APPOINTMENTS PER MONTH -->
+    <section id="analytics-section" class="tab-section">
+      <h2>Analytics – Appointments per Month</h2>
+      <p>This chart shows how many appointments are booked per month.</p>
+      <canvas id="appointments-chart" width="400" height="200"></canvas>
+    </section>
+    <!-- VIEWS / REPORTS -->
+<section id="views-section" class="tab-section">
+  <h2>Reports / Views (Phase II)</h2>
+
+  <p>Select a view to run and display its results:</p>
+
+  <div class="views-buttons">
+    <button class="btn view-btn" data-view="upcoming-appointments">
+      View 1 – UpcomingAppointments
+    </button>
+    <button class="btn view-btn" data-view="top-cost-vets">
+      View 2 – TopCostVets
+    </button>
+    <button class="btn view-btn" data-view="owner-pet-counts">
+      View 3 – OwnerPetCounts
+    </button>
+    <button class="btn view-btn" data-view="full-appointment-summary">
+      View 4 – FullAppointmentSummary
+    </button>
+    <button class="btn view-btn" data-view="active-pets">
+      View 5 – ActivePets
+    </button>
+    <button class="btn view-btn" data-view="top-medications">
+      View 6 – TopMedications
+    </button>
+    <button class="btn view-btn" data-view="multi-service-pets">
+      View 7 – MultiServicePets
+    </button>
+    <button class="btn view-btn" data-view="multi-pet-owners">
+      View 8 – MultiPetOwners
+    </button>
+    <button class="btn view-btn" data-view="avg-treatment-cost-per-vet">
+      View 9 – AvgTreatmentCostPerVet
+    </button>
+    <button class="btn view-btn" data-view="inactive-pets">
+      View 10 – InactivePets
+    </button>
+  </div>
+
+  <table id="view-table">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+</section>
+
   </main>
 
   <p id="dashboard-message" class="message"></p>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/dashboard.js"></script>

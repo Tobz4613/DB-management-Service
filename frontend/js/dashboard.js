@@ -1,3 +1,5 @@
+let appointmentsChart = null; // for the Analytics chart
+
 // Run when dashboard loads
 window.addEventListener("DOMContentLoaded", () => {
   setupTabs();
@@ -5,6 +7,9 @@ window.addEventListener("DOMContentLoaded", () => {
   setupOwnerHandlers();
   setupPetHandlers();
   setupAppointmentHandlers();
+  setupAppointmentsChart();   // Analytics chart
+  setupViews();               // Views / Reports tab
+  setupSearchAndExport();     // Search + CSV export
 
   // try to load data; if not logged in, backend will return 401
   refreshAll();
@@ -132,25 +137,29 @@ function setupOwnerHandlers() {
   });
 }
 
+function renderOwnersTable(owners) {
+  const tbody = document.querySelector("#owners-table tbody");
+  tbody.innerHTML = "";
+
+  owners.forEach((o) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${o.owner_id}</td>
+      <td>${o.first_name}</td>
+      <td>${o.last_name}</td>
+      <td>${o.phone || ""}</td>
+      <td>${o.email}</td>
+      <td>${o.address || ""}</td>
+      <td>(click row to edit)</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 async function refreshOwners() {
   try {
     const owners = await apiRequest("/api/owners");
-    const tbody = document.querySelector("#owners-table tbody");
-    tbody.innerHTML = "";
-
-    owners.forEach((o) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${o.owner_id}</td>
-        <td>${o.first_name}</td>
-        <td>${o.last_name}</td>
-        <td>${o.phone || ""}</td>
-        <td>${o.email}</td>
-        <td>${o.address || ""}</td>
-        <td>(click row to edit)</td>
-      `;
-      tbody.appendChild(tr);
-    });
+    renderOwnersTable(owners);
   } catch (err) {
     if (err.message.includes("Not logged in")) {
       window.location.href = "index.html";
@@ -353,26 +362,301 @@ function setupAppointmentHandlers() {
   });
 }
 
+function renderAppointmentsTable(appts) {
+  const tbody = document.querySelector("#appointments-table tbody");
+  tbody.innerHTML = "";
+
+  appts.forEach((a) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${a.appointment_id}</td>
+      <td>${a.pet_id}</td>
+      <td>${a.vet_id}</td>
+      <td>${a.appointment_date}</td>
+      <td>${a.appointment_time}</td>
+      <td>${a.reason}</td>
+      <td>${a.status}</td>
+      <td>(click row to edit)</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 async function refreshAppointments() {
   try {
     const appts = await apiRequest("/api/appointments");
-    const tbody = document.querySelector(
-      "#appointments-table tbody"
-    );
+    renderAppointmentsTable(appts);
+  } catch (err) {
+    setDashboardMessage(err.message);
+  }
+}
+
+/* ---------------- ANALYTICS: APPOINTMENTS PER MONTH ---------------- */
+
+async function setupAppointmentsChart() {
+  try {
+    const data = await apiRequest("/api/stats/appointments-per-month");
+    renderAppointmentsChart(data);
+  } catch (err) {
+    console.error("Error loading appointments per month:", err);
+    setDashboardMessage(err.message);
+  }
+}
+
+function renderAppointmentsChart(rows) {
+  const canvas = document.getElementById("appointments-chart");
+  if (!canvas) return;
+
+  // Sort by month ascending
+  const sorted = [...rows].sort((a, b) => (a.month < b.month ? -1 : 1));
+  const labels = sorted.map((r) => r.month); // "YYYY-MM"
+  const counts = sorted.map((r) => r.count);
+
+  const ctx = canvas.getContext("2d");
+
+  // Destroy previous chart if exists
+  if (appointmentsChart) {
+    appointmentsChart.destroy();
+  }
+
+  appointmentsChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Appointments Per Month",
+          data: counts,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          title: { display: true, text: "Month (YYYY-MM)" },
+        },
+        y: {
+          title: { display: true, text: "Number of Appointments" },
+          beginAtZero: true,
+          ticks: { precision: 0 },
+        },
+      },
+    },
+  });
+}
+
+/* ---------------- SEARCH + EXPORT ---------------- */
+
+function setupSearchAndExport() {
+  // Export owners CSV
+  const exportBtn = document.getElementById("export-owners-btn");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      window.location.href = "/api/export/owners.csv";
+    });
+  }
+
+  // Owner search
+  const ownerSearchForm = document.getElementById("owner-search-form");
+  if (ownerSearchForm) {
+    ownerSearchForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const q = document.getElementById("owner-search-q").value.trim();
+      if (!q) {
+        refreshOwners();
+        return;
+      }
+      try {
+        const owners = await apiRequest(
+          `/api/owners/search?q=${encodeURIComponent(q)}`
+        );
+        renderOwnersTable(owners);
+      } catch (err) {
+        setDashboardMessage(err.message);
+      }
+    });
+
+    const clearBtn = document.getElementById("owner-search-clear");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        document.getElementById("owner-search-q").value = "";
+        refreshOwners();
+      });
+    }
+  }
+
+  // Appointment search/filter
+  const apptSearchForm = document.getElementById("appointment-search-form");
+  if (apptSearchForm) {
+    apptSearchForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("appt-search-status").value;
+      const from = document.getElementById("appt-search-from").value;
+      const to = document.getElementById("appt-search-to").value;
+
+      const params = new URLSearchParams();
+      if (status) params.append("status", status);
+      if (from) params.append("from", from);
+      if (to) params.append("to", to);
+
+      if (!status && !from && !to) {
+        refreshAppointments();
+        return;
+      }
+
+      try {
+        const appts = await apiRequest(
+          `/api/appointments/search?${params.toString()}`
+        );
+        renderAppointmentsTable(appts);
+      } catch (err) {
+        setDashboardMessage(err.message);
+      }
+    });
+
+    const clearApptBtn = document.getElementById("appt-search-clear");
+    if (clearApptBtn) {
+      clearApptBtn.addEventListener("click", () => {
+        document.getElementById("appt-search-status").value = "";
+        document.getElementById("appt-search-from").value = "";
+        document.getElementById("appt-search-to").value = "";
+        refreshAppointments();
+      });
+    }
+  }
+}
+
+/* ---------------- VIEWS (PHASE II) ---------------- */
+
+function setupViews() {
+  const buttons = document.querySelectorAll(".view-btn");
+  if (!buttons.length) return;
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-view");
+      loadView(key);
+    });
+  });
+}
+
+const VIEW_CONFIG = {
+  "upcoming-appointments": {
+    endpoint: "/api/views/upcoming-appointments",
+    columns: [
+      { key: "appointment_id", label: "Appointment ID" },
+      { key: "PetName", label: "Pet" },
+      { key: "OwnerFirst", label: "Owner First" },
+      { key: "OwnerLast", label: "Owner Last" },
+      { key: "VetFirst", label: "Vet First" },
+      { key: "VetLast", label: "Vet Last" },
+      { key: "appointment_date", label: "Date" },
+      { key: "appointment_time", label: "Time" },
+      { key: "status", label: "Status" },
+    ],
+  },
+  "top-cost-vets": {
+    endpoint: "/api/views/top-cost-vets",
+    columns: [
+      { key: "vet_id", label: "Vet ID" },
+      { key: "first_name", label: "First" },
+      { key: "last_name", label: "Last" },
+      { key: "AvgCost", label: "Avg Cost" },
+    ],
+  },
+  "owner-pet-counts": {
+    endpoint: "/api/views/owner-pet-counts",
+    columns: [
+      { key: "owner_id", label: "Owner ID" },
+      { key: "first_name", label: "First" },
+      { key: "last_name", label: "Last" },
+      { key: "PetCount", label: "# Pets" },
+    ],
+  },
+  "full-appointment-summary": {
+    endpoint: "/api/views/full-appointment-summary",
+    columns: [
+      { key: "PetName", label: "Pet" },
+      { key: "status", label: "Status" },
+      { key: "appointment_date", label: "Date" },
+    ],
+  },
+  "active-pets": {
+    endpoint: "/api/views/active-pets",
+    columns: [{ key: "PetName", label: "Pet" }],
+  },
+  "top-medications": {
+    endpoint: "/api/views/top-medications",
+    columns: [
+      { key: "medication", label: "Medication" },
+      { key: "TimesUsed", label: "Times Used" },
+    ],
+  },
+  "multi-service-pets": {
+    endpoint: "/api/views/multi-service-pets",
+    columns: [
+      { key: "PetName", label: "Pet" },
+      { key: "ServiceCount", label: "# Services" },
+    ],
+  },
+  "multi-pet-owners": {
+    endpoint: "/api/views/multi-pet-owners",
+    columns: [
+      { key: "first_name", label: "First" },
+      { key: "last_name", label: "Last" },
+      { key: "PetCount", label: "# Pets" },
+    ],
+  },
+  "avg-treatment-cost-per-vet": {
+    endpoint: "/api/views/avg-treatment-cost-per-vet",
+    columns: [
+      { key: "first_name", label: "First" },
+      { key: "last_name", label: "Last" },
+      { key: "AvgCost", label: "Avg Cost" },
+    ],
+  },
+  "inactive-pets": {
+    endpoint: "/api/views/inactive-pets",
+    columns: [
+      { key: "PetName", label: "Pet" },
+      { key: "OwnerFirst", label: "Owner First" },
+      { key: "OwnerLast", label: "Owner Last" },
+    ],
+  },
+};
+
+async function loadView(viewKey) {
+  const config = VIEW_CONFIG[viewKey];
+  if (!config) return;
+
+  try {
+    const rows = await apiRequest(config.endpoint);
+    const thead = document.querySelector("#view-table thead");
+    const tbody = document.querySelector("#view-table tbody");
+    thead.innerHTML = "";
     tbody.innerHTML = "";
 
-    appts.forEach((a) => {
+    // header
+    const headRow = document.createElement("tr");
+    config.columns.forEach((col) => {
+      const th = document.createElement("th");
+      th.textContent = col.label;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+
+    // body
+    rows.forEach((row) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${a.appointment_id}</td>
-        <td>${a.pet_id}</td>
-        <td>${a.vet_id}</td>
-        <td>${a.appointment_date}</td>
-        <td>${a.appointment_time}</td>
-        <td>${a.reason}</td>
-        <td>${a.status}</td>
-        <td>(click row to edit)</td>
-      `;
+      config.columns.forEach((col) => {
+        const td = document.createElement("td");
+        td.textContent =
+          row[col.key] !== null && row[col.key] !== undefined
+            ? row[col.key]
+            : "";
+        tr.appendChild(td);
+      });
       tbody.appendChild(tr);
     });
   } catch (err) {
