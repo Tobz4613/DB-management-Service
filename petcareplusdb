@@ -1,0 +1,282 @@
+-- Part A - Database
+DROP DATABASE IF EXISTS petcareplusdb;
+CREATE DATABASE petcareplusdb;
+USE petcareplusdb;
+
+
+DROP TABLE IF EXISTS WeatherLog;
+
+-- =========================
+-- OWNER TABLE
+-- =========================
+CREATE TABLE Owner (
+    owner_id INT PRIMARY KEY,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    phone VARCHAR(15),
+    email VARCHAR(100),
+    address VARCHAR(100)
+);
+
+-- =========================
+-- VETERINARIAN TABLE
+-- =========================
+CREATE TABLE Veterinarian (
+    vet_id INT PRIMARY KEY,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    specialty VARCHAR(100),
+    bio TEXT
+);
+
+-- =========================
+-- PET TABLE
+-- =========================
+CREATE TABLE Pet (
+    pet_id INT PRIMARY KEY,
+    name VARCHAR(50),
+    species VARCHAR(50),
+    gender VARCHAR(10),
+    owner_id INT,
+    FOREIGN KEY (owner_id) REFERENCES Owner(owner_id)
+);
+
+-- =========================
+-- APPOINTMENT TABLE
+-- =========================
+CREATE TABLE Appointment (
+    appointment_id INT PRIMARY KEY,
+    pet_id INT,
+    vet_id INT,
+    appointment_date DATE,
+    appointment_time TIME,
+    reason VARCHAR(200),
+    status VARCHAR(20),
+    FOREIGN KEY (pet_id) REFERENCES Pet(pet_id),
+    FOREIGN KEY (vet_id) REFERENCES Veterinarian(vet_id)
+);
+
+-- =========================
+-- TREATMENT TABLE
+-- =========================
+CREATE TABLE Treatment (
+    treatment_id INT PRIMARY KEY,
+    appointment_id INT,
+    description VARCHAR(255),
+    medication VARCHAR(100),
+    cost DECIMAL(8,2),
+    FOREIGN KEY (appointment_id) REFERENCES Appointment(appointment_id)
+);
+
+-- =========================
+-- EXTRA TABLES FOR PHASE 3
+-- =========================
+
+
+-- =========================
+-- SOCIAL MEDIA LOG TABLE
+-- =========================
+CREATE TABLE SocialLog (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    platform VARCHAR(50),
+    post_id INT,
+    title VARCHAR(255),
+    username VARCHAR(100),
+    logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+DESCRIBE SocialLog;
+
+
+
+-- User accounts for roles (admin/user/guest)
+CREATE TABLE user_accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    role ENUM('admin','user','guest') DEFAULT 'user'
+);
+
+-- Users table for login (plain email/password, matches backend code)
+CREATE TABLE users (
+   id INT PRIMARY KEY AUTO_INCREMENT,
+   email VARCHAR(100) NOT NULL UNIQUE,
+   password VARCHAR(100) NOT NULL
+);
+
+-- =========================
+-- Part B - Sample Data
+-- =========================
+
+-- OWNER
+INSERT INTO Owner (owner_id, first_name, last_name, phone, email, address) VALUES
+(1, 'Zeyad', 'Ghazal', '4161234567', 'zeyad.g@gmail.com', 'Toronto'),
+(2, 'Omar', 'Ahmed', '6472223333', 'omar.ahmed@hotmail.com', 'Ajax'),
+(3, 'Blake', 'Heselden', '2895559988', 'blake.h@gmail.com', 'Whitby'),
+(4, 'Ali', 'Hassan', '4374442233', 'ali.h@hotmail.com', 'Oshawa'),
+(5, 'Anakin', 'Skywalker', '9057775555', 'anakin.s@gmail.com', 'Pickering'),
+(6, 'Bruce', 'Wayne', '4165559999', 'bruce.w@gmail.com', 'Markham');
+
+-- VETERINARIAN
+INSERT INTO Veterinarian (vet_id, first_name, last_name, specialty, bio) VALUES
+(1, 'Dr. Patrick', 'Bateman', 'Canine Specialist', '10+ years of experience with dog health'),
+(2, 'Dr. Tyler', 'Durden', 'Feline Specialist', 'Specializes in cats and small mammals'),
+(3, 'Dr. Paul', 'Allen', 'Surgery Specialist', 'Performs surgical and orthopedic treatments'),
+(4, 'Dr. Liam', 'Wilson', 'Dermatology', 'Focuses on skin and allergy-related cases'),
+(5, 'Dr. Ava', 'Clark', 'General Practice', 'Handles wellness exams and vaccinations'),
+(6, 'Dr. Ethan', 'Martin', 'Exotic Animals', 'Expert in reptiles and birds');
+
+-- PET
+INSERT INTO Pet (pet_id, name, species, gender, owner_id) VALUES
+(1, 'Buddy', 'Dog', 'Male', 1),
+(2, 'Milo', 'Cat', 'Male', 2),
+(3, 'Bella', 'Dog', 'Female', 3),
+(4, 'Luna', 'Cat', 'Female', 4),
+(5, 'Rocky', 'Dog', 'Male', 5),
+(6, 'Coco', 'Parrot', 'Female', 6);
+
+-- APPOINTMENT
+INSERT INTO Appointment (appointment_id, pet_id, vet_id, appointment_date, appointment_time, reason, status) VALUES
+(1, 1, 1, '2025-11-10', '10:30:00', 'Annual Checkup', 'Completed'),
+(2, 2, 2, '2025-11-12', '14:00:00', 'Vaccination', 'Scheduled'),
+(3, 3, 3, '2025-11-15', '09:00:00', 'Surgery Follow-up', 'Completed'),
+(4, 4, 4, '2025-11-18', '11:15:00', 'Skin Rash', 'Scheduled'),
+(5, 5, 5, '2025-11-19', '16:30:00', 'Routine Checkup', 'Completed'),
+(6, 6, 6, '2025-11-20', '13:45:00', 'Wing Injury', 'Scheduled');
+
+-- TREATMENT
+INSERT INTO Treatment (treatment_id, appointment_id, description, medication, cost) VALUES
+(1, 1, 'Physical exam and deworming', 'Heartgard', 75.00),
+(2, 2, 'Rabies and distemper vaccination', 'Nobivac', 50.00),
+(3, 3, 'Surgical wound cleaning and antibiotics', 'Amoxicillin', 120.00),
+(4, 4, 'Skin allergy treatment and ointment', 'Hydrocortisone Cream', 60.00),
+(5, 5, 'Dental cleaning and fluoride treatment', 'DentalGel', 90.00),
+(6, 6, 'Wing bandaging and anti-inflammatory', 'Meloxicam', 80.00);
+
+-- =========================
+-- Part C - Views
+-- =========================
+
+-- View 1: Scheduled appointments with pet, owner, vet
+CREATE VIEW UpcomingAppointments AS
+SELECT 
+    a.appointment_id,
+    p.name       AS PetName,
+    o.first_name AS OwnerFirst,
+    o.last_name  AS OwnerLast,
+    v.first_name AS VetFirst,
+    v.last_name  AS VetLast,
+    a.appointment_date,
+    a.appointment_time,
+    a.status
+FROM Appointment a
+JOIN Pet p          ON a.pet_id = p.pet_id
+JOIN Owner o        ON p.owner_id = o.owner_id
+JOIN Veterinarian v ON a.vet_id = v.vet_id
+WHERE a.status = 'Scheduled';
+
+-- View 2: Vets with highest avg treatment cost
+CREATE VIEW TopCostVets AS
+SELECT v.vet_id, v.first_name, v.last_name, AVG(t.cost) AS AvgCost
+FROM Veterinarian v
+JOIN Appointment a ON v.vet_id = a.vet_id
+JOIN Treatment t   ON a.appointment_id = t.appointment_id
+GROUP BY v.vet_id, v.first_name, v.last_name
+HAVING AVG(t.cost) > ALL (
+    SELECT AVG(t2.cost)
+    FROM Treatment t2
+    JOIN Appointment a2 ON t2.appointment_id = a2.appointment_id
+    GROUP BY a2.vet_id
+);
+
+-- View 3: Owners with pet counts
+CREATE VIEW OwnerPetCounts AS
+SELECT o.owner_id, o.first_name, o.last_name,
+       (SELECT COUNT(*)
+        FROM Pet p
+        WHERE p.owner_id = o.owner_id) AS PetCount
+FROM Owner o;
+
+-- View 4: Full pet/appointment summary (simulated FULL JOIN)
+CREATE VIEW FullAppointmentSummary AS
+SELECT p.name AS PetName, a.status, a.appointment_date
+FROM Pet p
+LEFT JOIN Appointment a ON p.pet_id = a.pet_id
+UNION
+SELECT p.name AS PetName, a.status, a.appointment_date
+FROM Pet p
+RIGHT JOIN Appointment a ON p.pet_id = a.pet_id;
+
+-- View 5: Active pets (completed or scheduled)
+CREATE VIEW ActivePets AS
+SELECT DISTINCT p.name AS PetName
+FROM Pet p
+JOIN Appointment a ON p.pet_id = a.pet_id
+WHERE a.status = 'Completed'
+UNION
+SELECT DISTINCT p.name AS PetName
+FROM Pet p
+JOIN Appointment a ON p.pet_id = a.pet_id
+WHERE a.status = 'Scheduled';
+
+-- View 6: Top medications by frequency
+CREATE VIEW TopMedications AS
+SELECT medication, COUNT(*) AS TimesUsed
+FROM Treatment
+GROUP BY medication
+ORDER BY TimesUsed DESC;
+
+-- View 7: Pets with more than one treatment this month
+CREATE VIEW MultiServicePets AS
+SELECT p.name AS PetName, COUNT(t.treatment_id) AS ServiceCount
+FROM Treatment t
+JOIN Appointment a ON t.appointment_id = a.appointment_id
+JOIN Pet p ON a.pet_id = p.pet_id
+WHERE MONTH(a.appointment_date) = MONTH(CURDATE())
+GROUP BY p.pet_id
+HAVING COUNT(t.treatment_id) > 1;
+
+-- View 8: Owners with more than one pet
+CREATE VIEW MultiPetOwners AS
+SELECT o.first_name, o.last_name, COUNT(p.pet_id) AS PetCount
+FROM Owner o
+JOIN Pet p ON o.owner_id = p.owner_id
+GROUP BY o.owner_id
+HAVING COUNT(p.pet_id) > 1;
+
+-- View 9: Average treatment cost per vet
+CREATE VIEW AvgTreatmentCostPerVet AS
+SELECT v.first_name, v.last_name, AVG(t.cost) AS AvgCost
+FROM Treatment t
+JOIN Appointment a ON t.appointment_id = a.appointment_id
+JOIN Veterinarian v ON a.vet_id = v.vet_id
+GROUP BY v.vet_id;
+
+-- View 10: Inactive pets (no appointment in last 3 months)
+CREATE VIEW InactivePets AS
+SELECT p.name AS PetName, o.first_name AS OwnerFirst, o.last_name AS OwnerLast
+FROM Pet p
+JOIN Owner o ON p.owner_id = o.owner_id
+WHERE p.pet_id NOT IN (
+    SELECT pet_id FROM Appointment
+    WHERE appointment_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+);
+
+-- =========================
+-- Part D - Users for Login
+-- =========================
+
+-- Two users: admin and normal user
+INSERT INTO users (email, password) VALUES
+  ('admin@gmail.com', '1234'),
+  ('omar@gmail.com', '1234');
+
+INSERT INTO user_accounts (email, role) VALUES
+  ('admin@gmail.com', 'admin'),
+  ('omar@gmail.com', 'user');
+  
+  SELECT * FROM Owner LIMIT 6;
+SELECT * FROM Pet LIMIT 6;
+SELECT * FROM Veterinarian LIMIT 6;
+SELECT * FROM Appointment LIMIT 6;
+SELECT * FROM Treatment LIMIT 6;
+
+SELECT * FROM UpcomingAppointments;
