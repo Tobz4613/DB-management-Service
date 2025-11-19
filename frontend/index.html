@@ -5,9 +5,24 @@
   <title>PetCarePlus – Login</title>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
-<body>
+<body class="login-page">
+  <!-- Background video / gif -->
+  <div class="login-media">
+    <video class="login-video" autoplay muted loop playsinline>
+      <source src="/images/dog.mp4" type="video/mp4" />
+        </video>
+  </div>
+  <div class="login-overlay"></div>
+
   <div class="container">
-    <h1>PetCarePlus</h1>
+    <div class="login-header">
+      <div class="login-logo-mark">🐾</div>
+      <div class="login-header-text">
+        <h1>PetCarePlus</h1>
+        <p>Smart records for modern animal hospitals.</p>
+      </div>
+    </div>
+
     <h2>Login</h2>
 
     <form id="login-form" class="card">
@@ -15,13 +30,14 @@
         Email
         <input type="email" id="email" required />
       </label>
-
       <label>
         Password
         <input type="password" id="password" required />
       </label>
 
-      <button type="submit" class="btn">Login</button>
+      <div class="btn-row">
+        <button type="submit" class="btn">Login</button>
+      </div>
     </form>
 
     <p id="login-message" class="message"></p>
@@ -35,4 +51,5 @@
       .addEventListener("submit", handleLogin);
   </script>
 </body>
+
 </html>

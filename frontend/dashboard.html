@@ -19,25 +19,63 @@
     <button class="tab-btn" data-target="analytics-section">Analytics</button>
   </div>
 
+  <!-- HERO SLIDESHOW -->
+  <section class="hero-slideshow">
+    <div class="hero-slideshow-inner">
+      <div class="hero-slide active">
+        <img src="/images/pic1.jpg" alt="Clinic staff with dog" />
+        <div class="hero-caption">
+          <h2>All your pet data in one place</h2>
+          <p>See owners, pets, appointments and treatments at a glance.</p>
+        </div>
+      </div>
+
+      <div class="hero-slide">
+        <img src="/images/pic2.jpg" alt="Vet examining a cat" />
+        <div class="hero-caption">
+          <h2>Stay on top of appointments</h2>
+          <p>Use analytics to track busy months and optimize scheduling.</p>
+        </div>
+      </div>
+
+      <div class="hero-slide">
+        <img src="/images/pic3.jpg" alt="Happy pet and owner" />
+        <div class="hero-caption">
+          <h2>Care that feels personal</h2>
+          <p>Give each pet the attention they deserve with organized records.</p>
+        </div>
+      </div>
+    </div>
+
+    <button class="hero-nav hero-prev" aria-label="Previous slide">&#10094;</button>
+    <button class="hero-nav hero-next" aria-label="Next slide">&#10095;</button>
+
+    <div class="hero-dots">
+      <button class="hero-dot active" data-index="0" aria-label="Slide 1"></button>
+      <button class="hero-dot" data-index="1" aria-label="Slide 2"></button>
+      <button class="hero-dot" data-index="2" aria-label="Slide 3"></button>
+    </div>
+  </section>
+
   <main>
     <!-- OWNERS -->
     <section id="owners-section" class="tab-section active">
       <h2>Owners</h2>
       <form id="owner-search-form" class="inline-form">
-    <input
-      type="text"
-      id="owner-search-q"
-      placeholder="Search owners (name or email)"
-    />
-    <button type="submit" class="btn btn-outline">Search</button>
-    <button type="button" id="owner-search-clear" class="btn btn-outline">
-      Clear
-    </button>
-  </form>
+        <input
+          type="text"
+          id="owner-search-q"
+          placeholder="Search owners (name or email)"
+        />
+        <button type="submit" class="btn btn-outline">Search</button>
+        <button type="button" id="owner-search-clear" class="btn btn-outline">
+          Clear
+        </button>
+      </form>
 
-  <button id="export-owners-btn" class="btn btn-outline">
-    Export Owners CSV
-  </button>
+      <button id="export-owners-btn" class="btn btn-outline">
+        Export Owners CSV
+      </button>
 
       <div class="grid">
         <div>
@@ -159,28 +197,28 @@
       <h2>Appointments</h2>
 
       <form id="appointment-search-form" class="inline-form">
-    <label>
-      Status
-      <select id="appt-search-status">
-        <option value="">Any</option>
-        <option value="Scheduled">Scheduled</option>
-        <option value="Completed">Completed</option>
-        <option value="Cancelled">Cancelled</option>
-      </select>
-    </label>
-    <label>
-      From
-      <input type="date" id="appt-search-from" />
-    </label>
-    <label>
-      To
-      <input type="date" id="appt-search-to" />
-    </label>
-    <button type="submit" class="btn btn-outline">Filter</button>
-    <button type="button" id="appt-search-clear" class="btn btn-outline">
-      Clear
-    </button>
-  </form>
+        <label>
+          Status
+          <select id="appt-search-status">
+            <option value="">Any</option>
+            <option value="Scheduled">Scheduled</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label>
+          From
+          <input type="date" id="appt-search-from" />
+        </label>
+        <label>
+          To
+          <input type="date" id="appt-search-to" />
+        </label>
+        <button type="submit" class="btn btn-outline">Filter</button>
+        <button type="button" id="appt-search-clear" class="btn btn-outline">
+          Clear
+        </button>
+      </form>
 
       <div class="grid">
         <div>
@@ -249,53 +287,58 @@
     <section id="analytics-section" class="tab-section">
       <h2>Analytics – Appointments per Month</h2>
       <p>This chart shows how many appointments are booked per month.</p>
+
+      <div id="analytics-empty" class="analytics-empty" style="display: none;">
+        <p>No appointments booked yet.</p>
+      </div>
+
       <canvas id="appointments-chart" width="400" height="200"></canvas>
     </section>
+
     <!-- VIEWS / REPORTS -->
-<section id="views-section" class="tab-section">
-  <h2>Reports / Views (Phase II)</h2>
+    <section id="views-section" class="tab-section">
+      <h2>Reports / Views</h2>
 
-  <p>Select a view to run and display its results:</p>
+      <p>Select a view to run and display its results:</p>
 
-  <div class="views-buttons">
-    <button class="btn view-btn" data-view="upcoming-appointments">
-      View 1 – UpcomingAppointments
-    </button>
-    <button class="btn view-btn" data-view="top-cost-vets">
-      View 2 – TopCostVets
-    </button>
-    <button class="btn view-btn" data-view="owner-pet-counts">
-      View 3 – OwnerPetCounts
-    </button>
-    <button class="btn view-btn" data-view="full-appointment-summary">
-      View 4 – FullAppointmentSummary
-    </button>
-    <button class="btn view-btn" data-view="active-pets">
-      View 5 – ActivePets
-    </button>
-    <button class="btn view-btn" data-view="top-medications">
-      View 6 – TopMedications
-    </button>
-    <button class="btn view-btn" data-view="multi-service-pets">
-      View 7 – MultiServicePets
-    </button>
-    <button class="btn view-btn" data-view="multi-pet-owners">
-      View 8 – MultiPetOwners
-    </button>
-    <button class="btn view-btn" data-view="avg-treatment-cost-per-vet">
-      View 9 – AvgTreatmentCostPerVet
-    </button>
-    <button class="btn view-btn" data-view="inactive-pets">
-      View 10 – InactivePets
-    </button>
-  </div>
+      <div class="views-buttons">
+        <button class="btn view-btn" data-view="upcoming-appointments">
+          View 1 – UpcomingAppointments
+        </button>
+        <button class="btn view-btn" data-view="top-cost-vets">
+          View 2 – TopCostVets
+        </button>
+        <button class="btn view-btn" data-view="owner-pet-counts">
+          View 3 – OwnerPetCounts
+        </button>
+        <button class="btn view-btn" data-view="full-appointment-summary">
+          View 4 – FullAppointmentSummary
+        </button>
+        <button class="btn view-btn" data-view="active-pets">
+          View 5 – ActivePets
+        </button>
+        <button class="btn view-btn" data-view="top-medications">
+          View 6 – TopMedications
+        </button>
+        <button class="btn view-btn" data-view="multi-service-pets">
+          View 7 – MultiServicePets
+        </button>
+        <button class="btn view-btn" data-view="multi-pet-owners">
+          View 8 – MultiPetOwners
+        </button>
+        <button class="btn view-btn" data-view="avg-treatment-cost-per-vet">
+          View 9 – AvgTreatmentCostPerVet
+        </button>
+        <button class="btn view-btn" data-view="inactive-pets">
+          View 10 – InactivePets
+        </button>
+      </div>
 
-  <table id="view-table">
-    <thead></thead>
-    <tbody></tbody>
-  </table>
-</section>
-
+      <table id="view-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </section>
   </main>
 
   <p id="dashboard-message" class="message"></p>
@@ -304,5 +347,91 @@
   <script src="/js/api.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/dashboard.js"></script>
+
+  <script>
+    (function () {
+      const slides = document.querySelectorAll(".hero-slide");
+      const dots = document.querySelectorAll(".hero-dot");
+      const prevBtn = document.querySelector(".hero-prev");
+      const nextBtn = document.querySelector(".hero-next");
+
+      if (!slides.length) return;
+
+      let current = 0;
+      let timer;
+
+      function showSlide(index) {
+        slides[current].classList.remove("active");
+        dots[current].classList.remove("active");
+
+        current = (index + slides.length) % slides.length;
+
+        slides[current].classList.add("active");
+        dots[current].classList.add("active");
+      }
+
+      function nextSlide() {
+        showSlide(current + 1);
+      }
+
+      function prevSlide() {
+        showSlide(current - 1);
+      }
+
+      function startAuto() {
+        stopAuto();
+        timer = setInterval(nextSlide, 5000);
+      }
+
+      function stopAuto() {
+        if (timer) clearInterval(timer);
+      }
+
+      if (nextBtn && prevBtn) {
+        nextBtn.addEventListener("click", function () {
+          nextSlide();
+          startAuto();
+        });
+
+        prevBtn.addEventListener("click", function () {
+          prevSlide();
+          startAuto();
+        });
+      }
+
+      dots.forEach((dot) => {
+        dot.addEventListener("click", () => {
+          const index = parseInt(dot.dataset.index, 10);
+          showSlide(index);
+          startAuto();
+        });
+      });
+
+      const hero = document.querySelector(".hero-slideshow");
+      if (hero) {
+        hero.addEventListener("mouseenter", stopAuto);
+        hero.addEventListener("mouseleave", startAuto);
+      }
+
+      startAuto();
+    })();
+  </script>
+
+  <script>
+    // helper you can call from dashboard.js after loading analytics data
+    window.updateAnalyticsState = function (hasAppointments) {
+      const emptyBox = document.getElementById("analytics-empty");
+      const chartCanvas = document.getElementById("appointments-chart");
+      if (!emptyBox || !chartCanvas) return;
+
+      if (hasAppointments) {
+        emptyBox.style.display = "none";
+        chartCanvas.style.display = "block";
+      } else {
+        emptyBox.style.display = "block";
+        chartCanvas.style.display = "none";
+      }
+    };
+  </script>
 </body>
 </html>

@@ -43,20 +43,18 @@ function setDashboardMessage(text) {
   el.textContent = text || "";
 }
 
-/* ---------------- OWNERS ---------------- */
+/*----OWNERS*/
 
 function setupOwnerHandlers() {
   const form = document.getElementById("owner-form");
   const deleteBtn = document.getElementById("owner-delete-btn");
   const tableBody = document.querySelector("#owners-table tbody");
 
-  // Safety check so we don't crash if elements are missing
   if (!form || !deleteBtn || !tableBody) {
     console.error("Owner elements not found on page");
     return;
   }
 
-  // click table row → load into form (for quick edits)
   tableBody.addEventListener("click", (e) => {
     const row = e.target.closest("tr");
     if (!row) return;
@@ -83,7 +81,6 @@ function setupOwnerHandlers() {
     const address = document.getElementById("owner_address").value.trim();
 
     try {
-      // Try update first
       await apiRequest(`/api/owners/${owner_id}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -96,7 +93,6 @@ function setupOwnerHandlers() {
       });
       setDashboardMessage("Owner updated (admin only).");
     } catch (err) {
-      // If update fails, try create
       try {
         await apiRequest("/api/owners", {
           method: "POST",
@@ -169,8 +165,7 @@ async function refreshOwners() {
   }
 }
 
-
-/* ---------------- PETS ---------------- */
+/* ---------------- PETS*/
 
 function setupPetHandlers() {
   const form = document.getElementById("pet-form");
@@ -268,7 +263,7 @@ async function refreshPets() {
   }
 }
 
-/* ---------------- APPOINTMENTS ---------------- */
+/* ---------------- APPOINTMENTS*/
 
 function setupAppointmentHandlers() {
   const form = document.getElementById("appointment-form");
@@ -393,12 +388,39 @@ async function refreshAppointments() {
 
 /* ---------------- ANALYTICS: APPOINTMENTS PER MONTH ---------------- */
 
+function setAnalyticsEmptyState(hasData) {
+  const emptyBox = document.getElementById("analytics-empty");
+  const chartCanvas = document.getElementById("appointments-chart");
+  if (!emptyBox || !chartCanvas) return;
+
+  if (hasData) {
+    emptyBox.style.display = "none";
+    chartCanvas.style.display = "block";
+  } else {
+    emptyBox.style.display = "block";
+    chartCanvas.style.display = "none";
+  }
+}
+
 async function setupAppointmentsChart() {
   try {
     const data = await apiRequest("/api/stats/appointments-per-month");
+
+    if (!data || data.length === 0) {
+      // no rows → show "no appointments" message and hide chart
+      setAnalyticsEmptyState(false);
+      if (appointmentsChart) {
+        appointmentsChart.destroy();
+        appointmentsChart = null;
+      }
+      return;
+    }
+
+    setAnalyticsEmptyState(true);
     renderAppointmentsChart(data);
   } catch (err) {
     console.error("Error loading appointments per month:", err);
+    setAnalyticsEmptyState(false);
     setDashboardMessage(err.message);
   }
 }
@@ -407,14 +429,21 @@ function renderAppointmentsChart(rows) {
   const canvas = document.getElementById("appointments-chart");
   if (!canvas) return;
 
-  // Sort by month ascending
+  if (!rows || !rows.length) {
+    setAnalyticsEmptyState(false);
+    if (appointmentsChart) {
+      appointmentsChart.destroy();
+      appointmentsChart = null;
+    }
+    return;
+  }
+
   const sorted = [...rows].sort((a, b) => (a.month < b.month ? -1 : 1));
-  const labels = sorted.map((r) => r.month); // "YYYY-MM"
+  const labels = sorted.map((r) => r.month);
   const counts = sorted.map((r) => r.count);
 
   const ctx = canvas.getContext("2d");
 
-  // Destroy previous chart if exists
   if (appointmentsChart) {
     appointmentsChart.destroy();
   }
@@ -446,10 +475,9 @@ function renderAppointmentsChart(rows) {
   });
 }
 
-/* ---------------- SEARCH + EXPORT ---------------- */
+/* ---------------- SEARCH + EXPORT*/
 
 function setupSearchAndExport() {
-  // Export owners CSV
   const exportBtn = document.getElementById("export-owners-btn");
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
@@ -457,7 +485,6 @@ function setupSearchAndExport() {
     });
   }
 
-  // Owner search
   const ownerSearchForm = document.getElementById("owner-search-form");
   if (ownerSearchForm) {
     ownerSearchForm.addEventListener("submit", async (e) => {
@@ -486,7 +513,6 @@ function setupSearchAndExport() {
     }
   }
 
-  // Appointment search/filter
   const apptSearchForm = document.getElementById("appointment-search-form");
   if (apptSearchForm) {
     apptSearchForm.addEventListener("submit", async (e) => {
@@ -527,7 +553,7 @@ function setupSearchAndExport() {
   }
 }
 
-/* ---------------- VIEWS (PHASE II) ---------------- */
+/* ---------------- VIEWS */
 
 function setupViews() {
   const buttons = document.querySelectorAll(".view-btn");
@@ -637,7 +663,6 @@ async function loadView(viewKey) {
     thead.innerHTML = "";
     tbody.innerHTML = "";
 
-    // header
     const headRow = document.createElement("tr");
     config.columns.forEach((col) => {
       const th = document.createElement("th");
@@ -646,7 +671,6 @@ async function loadView(viewKey) {
     });
     thead.appendChild(headRow);
 
-    // body
     rows.forEach((row) => {
       const tr = document.createElement("tr");
       config.columns.forEach((col) => {

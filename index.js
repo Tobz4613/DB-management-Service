@@ -1,10 +1,9 @@
-// This will get the environmental values from .env file that we have created 
+// Load environment variables from .env
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
-
-//We use axios for external
 const mysql = require("mysql2");
 const axios = require("axios");
 const path = require("path");
@@ -37,7 +36,7 @@ const db = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "petcareplusdb",
+  database: process.env.DB_NAME || "project_db",
 });
 
 // Confirm DB works on startup
@@ -47,7 +46,7 @@ db.getConnection((err, conn) => {
   } else {
     console.log(
       "✅ Connected to MySQL database:",
-      process.env.DB_NAME || "petcareplusdb"
+      process.env.DB_NAME || "project_db"
     );
     conn.release();
   }
@@ -543,22 +542,34 @@ app.put("/api/appointments/:id", requireRole("admin"), (req, res) => {
   );
 });
 
+// ✅ UPDATED: delete treatments first, then appointment
 app.delete("/api/appointments/:id", requireRole("admin"), (req, res) => {
   const apptId = toInt(req.params.id);
   if (Number.isNaN(apptId)) {
     return res.status(400).json({ error: "Invalid appointment_id" });
   }
 
-  const sql = "DELETE FROM Appointment WHERE appointment_id = ?";
-  db.query(sql, [apptId], (err, result) => {
+  const deleteTreatmentsSql = "DELETE FROM Treatment WHERE appointment_id = ?";
+
+  db.query(deleteTreatmentsSql, [apptId], (err) => {
     if (err) {
-      console.error("DB error in DELETE /api/appointments/:id:", err);
-      return res.status(500).json({ error: "Database error" });
+      console.error("Error deleting treatments for appointment:", err);
+      return res.status(500).json({ error: "Database error (treatments)" });
     }
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Appointment not found" });
-    }
-    res.json({ message: "Appointment deleted" });
+
+    const deleteAppointmentSql =
+      "DELETE FROM Appointment WHERE appointment_id = ?";
+
+    db.query(deleteAppointmentSql, [apptId], (err, result) => {
+      if (err) {
+        console.error("DB error in DELETE /api/appointments/:id:", err);
+        return res.status(500).json({ error: "Database error" });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      res.json({ message: "Appointment and related treatments deleted" });
+    });
   });
 });
 
@@ -742,111 +753,103 @@ app.get("/api/appointments/search", requireLogin, (req, res) => {
   });
 });
 
-
-
-// ---------- Phase III: External API Integration (PetCare Community Feed) ----------
+// ---------- Phase III: External API Integration + WeatherLog ----------
 //
-// Stores pet-related social media posts into SocialLog.
+// Uses Open-Meteo (no API key required) and saves into WeatherLog table.
 
-app.post("/api/social/fetch", requireLogin, async (req, res) => {
+app.post("/api/weather/fetch", requireLogin, async (req, res, next) => {
   try {
-    const platform = "PetCare Community Feed";
+    const cityRaw = (req.body.city || "Toronto").trim();
+    const key = cityRaw.toLowerCase();
+    const coords = CITY_COORDS[key];
 
-    // External fake social media API
-    const response = await axios.get("https://dummyjson.com/posts?limit=5");
-    const posts = response.data.posts; // [{ userId, id, title, body }]
-
-    const insertSql =
-      "INSERT INTO SocialLog (platform, title, username) VALUES (?, ?, ?)";
-
-    for (const post of posts) {
-      const username = `PetOwner-${post.userId}`;
-      const title = `PetCare Post: ${post.title}`;
-
-      await new Promise((resolve, reject) => {
-        db.query(insertSql, [platform, title, username], (err) => {
-          if (err) return reject(err);
-          resolve();
-        });
-      });
+    if (!coords) {
+      return res
+        .status(400)
+        .json({ error: "Unsupported city for this demo" });
     }
 
-    res.json({
-      message: "PetCare community posts fetched and saved",
-      count: posts.length,
-      platform,
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current_weather=true`;
+
+    const weatherResp = await axios.get(url);
+    const current = weatherResp.data.current_weather;
+
+    if (!current) {
+      return res.status(502).json({ error: "No current weather data returned" });
+    }
+
+    const temperature = current.temperature;
+    const windspeed = current.windspeed;
+
+    const sql =
+      "INSERT INTO WeatherLog (city, temperature_c, windspeed) VALUES (?, ?, ?)";
+    db.query(sql, [cityRaw, temperature, windspeed], (err) => {
+      if (err) {
+        console.error("DB error in POST /api/weather/fetch:", err);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      res.status(201).json({
+        message: "Weather fetched and saved",
+        data: {
+          city: cityRaw,
+          temperature_c: temperature,
+          windspeed,
+        },
+      });
     });
   } catch (err) {
-    console.error("Error in /api/social/fetch:", err);
-    res.status(500).json({ error: "Failed to fetch PetCare posts" });
+    console.error("Error in /api/weather/fetch:", err);
+    next(err);
   }
 });
 
-// GET stored social posts
-app.get("/api/social/logs", requireLogin, (req, res) => {
+app.get("/api/weather/logs", requireLogin, (req, res) => {
   const sql =
-    "SELECT id, platform, title, username, logged_at FROM SocialLog ORDER BY logged_at DESC LIMIT 50";
-
+    "SELECT id, city, temperature_c, windspeed, logged_at FROM WeatherLog ORDER BY logged_at DESC LIMIT 50";
   db.query(sql, (err, rows) => {
     if (err) {
-      console.error("DB error in GET /api/social/logs:", err);
+      console.error("DB error in GET /api/weather/logs:", err);
       return res.status(500).json({ error: "Database error" });
     }
     res.json(rows);
   });
 });
 
-
-// -External API Integration (PetCare Community Feed) 
+// ---------- Phase III: Data Export (CSV) ----------
 //
-// Stores pet-related social media posts into SocialLog.
+// Exports Owner data as CSV via a backend endpoint.
 
-app.post("/api/social/fetch", requireLogin, async (req, res) => {
-  try {
-    const platform = "PetCare Community Feed";
-
-    // Still call an external API (to satisfy the requirement),
-    // but we ignore its weird text and map it to pet-related content.
-    const response = await axios.get("https://dummyjson.com/posts?limit=5");
-    const posts = response.data.posts; // [{ userId, id, title, body }]
-
-    // Nice, pet-related titles we control
-    const petTitles = [
-      "PetCare Tip: Daily walking routine for dogs",
-      "PetCare Story: Milo the cat’s first vet visit",
-      "PetCare Tip: How to keep your pet calm during checkups",
-      "PetCare Update: Grooming reminders for long-hair pets",
-      "PetCare Tip: Vaccination schedule for puppies and kittens"
-    ];
-
-    const insertSql =
-      "INSERT INTO SocialLog (platform, title, username) VALUES (?, ?, ?)";
-
-    let i = 0;
-    for (const post of posts) {
-      const username = `PetOwner-${post.userId}`;
-      const title = petTitles[i % petTitles.length]; // cycle through pet titles
-      i++;
-
-      await new Promise((resolve, reject) => {
-        db.query(insertSql, [platform, title, username], (err) => {
-          if (err) return reject(err);
-          resolve();
-        });
-      });
+app.get("/api/export/owners.csv", requireRole("admin"), (req, res) => {
+  const sql = "SELECT * FROM Owner";
+  db.query(sql, (err, rows) => {
+    if (err) {
+      console.error("DB error in GET /api/export/owners.csv:", err);
+      return res.status(500).json({ error: "Database error" });
     }
 
-    res.json({
-      message: "PetCare community posts fetched and saved",
-      count: posts.length,
-      platform,
-    });
-  } catch (err) {
-    console.error("Error in /api/social/fetch:", err);
-    res.status(500).json({ error: "Failed to fetch PetCare posts" });
-  }
-});
+    res.header("Content-Type", "text/csv");
 
+    if (rows.length === 0) {
+      return res.send("owner_id,first_name,last_name,phone,email,address\n");
+    }
+
+    const headers = Object.keys(rows[0]);
+    const lines = [];
+
+    lines.push(headers.join(","));
+
+    rows.forEach((row) => {
+      const values = headers.map((h) => toCsvValue(row[h]));
+      lines.push(values.join(","));
+    });
+
+    const csv = lines.join("\n");
+
+    res.attachment("owners.csv");
+    res.send(csv);
+  });
+});
 
 // ---------- Phase III: Error Handling ----------
 
