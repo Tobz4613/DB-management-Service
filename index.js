@@ -1,98 +1,158 @@
-// Load environment variables from .env
-require("dotenv").config();
+// This is group 17's backend portion
 
+
+// ------------- ALL IMPORTS ----------------
+// This will get the environemntal values from .env file that we have created
+// Express allowed us to communite with any get or posts requests
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
+
+
+//We use axios for external
 const mysql = require("mysql2");
+// axios came in helpful for the external api stuff
 const axios = require("axios");
 const path = require("path");
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------------- Middleware ----------------
+
+// ---------------- MIDDLE MAN ------------
+
+
+// This portion will basically act as a middle man between the backend and frontend
+// Will ultimately connect it together  
+
 
 app.use(express.json());
 app.use(
-  cors({
-    origin: true, // allow frontend on localhost (any port)
-    credentials: true, // allow cookies for sessions
+      cors({
+    // If this is true, the frontend is allowed to be on local host
+    origin: true,
+      //If this is true, cookies will be added.
+      //Will keep track of user data
+      credentials: true,
   })
 );
 
+
 app.use(
   session({
+// We are now checking the env file
     secret: process.env.SESSION_SECRET || "petcareplus-secret-key",
+    // This is checking the secret key
     resave: false,
     saveUninitialized: false,
   })
 );
-app.use(express.static(path.join(__dirname, "frontend")));
+    app.use(express.static(path.join(__dirname, "frontend")));
 
-// ---------------- MySQL connection pool ----------------
+
+// This portion actually connects the database to the backend
+//We make sure the database name macthes
+
 
 const db = mysql.createPool({
+  // We make sure it matches the local host
   host: process.env.DB_HOST || "localhost",
+  // The backend will follow the database root
   user: process.env.DB_USER || "root",
+  // TWe did not have a password for my sql so thats why its empty
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "project_db",
+  // Make sure the name is exactly the same or else there will be database connection errors.
+  // The database will not connect if name doesnt match
+  // we faced many issues because of simple mistakes like mistmatchign names
+   database: process.env.DB_NAME || "petcareplusdb",
 });
 
-// Confirm DB works on startup
+
+// This portion of code will now check to see if the database will start
+// This will attempt tp get the database connection
 db.getConnection((err, conn) => {
+  // if this part fails, we print an error message
+  // this urges the user to try and fix
   if (err) {
-    console.error("❌ Error connecting to MySQL:", err.message);
+    console.error("❌ Error connecting to MySQL database:", err.message);
   } else {
     console.log(
-      "✅ Connected to MySQL database:",
-      process.env.DB_NAME || "project_db"
+      // If we do it correctly a successful connection message will be displayed
+      "🟢  We successfully Connected to MySQL database:",
+      // This is the database name
+      process.env.DB_NAME || "petcareplusdb"
     );
+    // This ends the console
     conn.release();
   }
 });
 
-// ---------------- Helper functions ----------------
 
+// ---------------------- FUNCTION HELPERS --------------
+
+
+// This portion of code acts as a helper function
+// We check if the email is valid.
+// This is compared to the email that is in the sql database
 function validateEmail(email) {
+  // checks if email is good
   if (!email) return false;
+  // we get an error message if the email is not valid in the database
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // will retry again
   return re.test(email);
 }
 
+
+// This is a simple toInt function
+// We added this for extra security in this program
 function toInt(value) {
+  // We did this just avoid any sql crashes that could happe
   const n = Number(value);
   return Number.isInteger(n) ? n : NaN;
 }
 
-// Simple CSV value escaper
+
+//--------------CSV----------------
+
+
+// This is our Csv portion
 function toCsvValue(value) {
   if (value === null || value === undefined) return "";
+  // This allowed us to not have any csv files crash if theres '
   const s = String(value);
+  // We implemeneted this beacuse our team ran into trouble with this exact issue. Csv would crash because of commas
   if (/[",\n]/.test(s)) {
     return '"' + s.replace(/"/g, '""') + '"';
+    //
   }
   return s;
 }
 
-// Role hierarchy helper (guest < user < admin)
+
+// This represents a hierchy
 const ROLE_LEVEL = {
+  // The guest will have the least amount of freedom
   guest: 0,
-  user: 1,
-  admin: 2,
+  user: 1, // user has more freedok
+  admin: 2, // admin has most freedom
 };
 
+
+// Checks if login info is valid
 function requireLogin(req, res, next) {
+  // if any non user tries logging an error will be printed
   if (!req.session.user) {
     return res.status(401).json({ error: "Not logged in" });
   }
   next();
 }
-
-function requireRole(minRole) {
+// This function is implemented to check the role of the user
+function requireRole(minRole) { // will return a function
   return (req, res, next) => {
-    if (!req.session.user) {
-      return res.status(401).json({ error: "Not logged in" });
+    if (!req.session.user) { // Again does a check to see if the user is valid first of all
+      return res.status(401).json({ error: "Not logged in" }); // prints an error
     }
     const userRole = req.session.user.role || "user";
     const userLevel =
@@ -100,57 +160,63 @@ function requireRole(minRole) {
     const minLevel =
       ROLE_LEVEL[minRole] !== undefined ? ROLE_LEVEL[minRole] : ROLE_LEVEL.user;
 
-    if (userLevel < minLevel) {
-      return res.status(403).json({ error: "Forbidden: insufficient role" });
+
+    if (userLevel < minLevel) { // checks if users role is lower that min
+      return res.status(403).json({ error: "Forbidden: insufficient role" }); // if its lower an error will be printed
     }
+
 
     next();
   };
 }
 
-// City -> coordinates for external weather API (simple mapping for assignment)
-const CITY_COORDS = {
-  toronto: { lat: 43.65107, lon: -79.347015 },
-  ajax: { lat: 43.8509, lon: -79.0204 },
-  whitby: { lat: 43.8971, lon: -78.942 },
-  oshawa: { lat: 43.8971, lon: -78.8658 },
-};
 
-// ---------------- Routes ----------------
+// -------------- Routes -------------
 
-// Simple home route
-app.get("/", (req, res) => {
+
+// Acts as simple route
+app.get("/", (req, res) => { // if / is hit, the login page is sent
   res.sendFile(path.join(__dirname, "frontend", "index.html"));
 });
 
-// ---------- Phase III: User Authentication + Roles ----------
+
+// ---------- Phase 3 User Authentication and roles----------
+
 
 // LOGIN - uses `users` table for credentials and `user_accounts` for role (if available)
 app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body; // Reads email and password
 
-  // Input Validation (email + password)
+
+  // Input Validation
   if (!email || !password) {
+    // If none are entered, an error will print
     return res.status(400).json({ error: "Email and password are required" });
   }
-  if (!validateEmail(email)) {
+  if (!validateEmail(email)) { // checks to see if email format is valid
+    // Prints error
     return res.status(400).json({ error: "Invalid email format" });
   }
-
+ 
+  // Checks if any of the email or password directly macthes any user in the user sql table
   const sqlUser = "SELECT id, email FROM users WHERE email = ? AND password = ?";
   db.query(sqlUser, [email, password], (err, userRows) => {
     if (err) {
+      // errors will be printed if condition comes across an error
       console.error("DB error in /api/login (users):", err);
       return res.status(500).json({ error: "Database error" });
     }
 
-    if (userRows.length === 0) {
+
+    if (userRows.length === 0) { // if nothing is filled, print an error
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
+
     const user = userRows[0];
 
-    // Look up role in user_accounts if available; default to "user" otherwise
+
+    // This will now validate user roles that are entered
     const sqlRole = "SELECT role FROM user_accounts WHERE email = ? LIMIT 1";
     db.query(sqlRole, [email], (roleErr, roleRows) => {
       if (roleErr) {
@@ -158,14 +224,16 @@ app.post("/api/login", (req, res) => {
         return res.status(500).json({ error: "Database error" });
       }
 
+
       const role = roleRows.length > 0 ? roleRows[0].role : "user";
 
+
+      // requests keep track of whihc role is logged in
       req.session.user = {
         id: user.id,
         email: user.email,
         role,
       };
-
       res.json({
         message: "Logged in successfully",
         role,
@@ -174,141 +242,161 @@ app.post("/api/login", (req, res) => {
   });
 });
 
-// LOGOUT
+
+// Logout
 app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({ message: "Logged out" });
+  req.session.destroy(() => { // simple logout system
+    res.json({ message: "Logged out" }); // prints when logged out
   });
 });
 
+
 // ---------- Phase III: CRUD Operations (Owner, Pet, Appointment) ----------
-//
-// Each entity has full Create, Read, Update, Delete using REST/JSON.
+
+
+// Each will have the ability Create, Read, Update, Delete using REST/JSON.
+
 
 // ----- Owner CRUD -----
-
-// Get all owners (requires login)
-app.get("/api/owners", requireLogin, (req, res) => {
+// Retrives an owner list
+app.get("/api/owners", requireLogin, (req, res) => { // Need to be logged in
   const sql = "SELECT * FROM Owner";
-  db.query(sql, (err, rows) => {
+  db.query(sql, (err, rows) => { // Displays list of owners
     if (err) {
-      console.error("DB error in GET /api/owners:", err);
+      console.error("DB error in GET /api/owners:", err); // Error message will be displayed if cant find in sql
       return res.status(500).json({ error: "Database error" });
     }
     res.json(rows);
   });
 });
 
+
 // Get single owner by ID
 app.get("/api/owners/:id", requireLogin, (req, res) => {
-  const ownerId = toInt(req.params.id);
-  if (Number.isNaN(ownerId)) {
+  const ownerId = toInt(req.params.id); // COnverts id to int
+  if (Number.isNaN(ownerId)) { // Validates if owner id is incorrect
     return res.status(400).json({ error: "Invalid owner_id" });
   }
 
-  const sql = "SELECT * FROM Owner WHERE owner_id = ?";
+
+  const sql = "SELECT * FROM Owner WHERE owner_id = ?"; // WIll now allow for queries for Owner
   db.query(sql, [ownerId], (err, rows) => {
-    if (err) {
+    if (err) { // Checks if there is a database error
       console.error("DB error in GET /api/owners/:id:", err);
       return res.status(500).json({ error: "Database error" });
     }
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Owner not found" });
+    if (rows.length === 0) { // If no more owner rows are left, owner doesnt exist
+      return res.status(404).json({ error: "Owner not found" }); // Error will be printed
     }
+    // Exit
     res.json(rows[0]);
   });
 });
 
-// Create new owner (admin only)
-app.post("/api/owners", requireRole("admin"), (req, res) => {
+
+// Create new owner
+// Only works for an admin
+app.post("/api/owners", requireRole("admin"), (req, res) => { // Validates if owner variables are avlid
   const { owner_id, first_name, last_name, phone, email, address } = req.body;
 
+
+  // simple change to int
   const id = toInt(owner_id);
-  if (Number.isNaN(id)) {
+  if (Number.isNaN(id)) { // We check if the owner id is an int, other wise print error
     return res.status(400).json({ error: "owner_id must be an integer" });
   }
-  if (!first_name || !last_name || !email) {
-    return res
+  if (!first_name || !last_name || !email) { // We make sure these fields are filled.
+    return res // cannot be empty
       .status(400)
       .json({ error: "first_name, last_name, and email are required" });
   }
-  if (!validateEmail(email)) {
+  if (!validateEmail(email)) { // Validates email adress
     return res.status(400).json({ error: "Invalid email format" });
   }
 
+
+  // Will generate the new owner table
   const sql =
     "INSERT INTO Owner (owner_id, first_name, last_name, phone, email, address) VALUES (?, ?, ?, ?, ?, ?)";
   db.query(
     sql,
     [id, first_name, last_name, phone || "", email, address || ""],
     (err) => {
-      if (err) {
+      if (err) { // Again checks for database errors
         console.error("DB error in POST /api/owners:", err);
         return res.status(500).json({ error: "Database error" });
-      }
+      } // When owner is created table will get updated
       res.status(201).json({ message: "Owner created", owner_id: id });
     }
   );
 });
 
+
 // Update owner (admin only)
-app.put("/api/owners/:id", requireRole("admin"), (req, res) => {
-  const ownerId = toInt(req.params.id);
-  if (Number.isNaN(ownerId)) {
+app.put("/api/owners/:id", requireRole("admin"), (req, res) => { // Checks if role is admin
+  const ownerId = toInt(req.params.id); // Makes sure id is only int
+  if (Number.isNaN(ownerId)) { // Will print an error
     return res.status(400).json({ error: "Invalid owner_id" });
   }
-
+// These are our parameters
   const { first_name, last_name, phone, email, address } = req.body;
+
 
   if (!first_name || !last_name || !email) {
     return res
-      .status(400)
-      .json({ error: "first_name, last_name, and email are required" });
+      .status(400) // We check if these 3 fields are entered
+      .json({ error: "first_name, last_name, and email are required" }); // Error message
   }
-  if (!validateEmail(email)) {
+  if (!validateEmail(email)) { // We also check if the email format is valid
     return res.status(400).json({ error: "Invalid email format" });
   }
 
-  const sql =
+
+  const sql = // We updated the table
     "UPDATE Owner SET first_name = ?, last_name = ?, phone = ?, email = ?, address = ? WHERE owner_id = ?";
   db.query(
-    sql,
+    sql, // Updates are acrried out from sql and sent
     [first_name, last_name, phone || "", email, address || "", ownerId],
     (err, result) => {
-      if (err) {
+      if (err) { // Again prints an error if database error happens
         console.error("DB error in PUT /api/owners/:id:", err);
         return res.status(500).json({ error: "Database error" });
-      }
+      } // If there are no rows left that means theres no more owners
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: "Owner not found" });
-      }
+      } // Prints a little message beneath the table to confirm that the owner table has been updated
       res.json({ message: "Owner updated" });
     }
   );
 });
 
-// Delete owner (admin only)
+
+// Delete owner
+// This can again only be done by admin
 app.delete("/api/owners/:id", requireRole("admin"), (req, res) => {
-  const ownerId = toInt(req.params.id);
+  const ownerId = toInt(req.params.id); // makes sure the owner id an int
+// Side comment: we are constantly focusing on the owner id value as that it is the value to be selected which allows for change in the table
   if (Number.isNaN(ownerId)) {
-    return res.status(400).json({ error: "Invalid owner_id" });
+    return res.status(400).json({ error: "Invalid owner_id" }); // Prints an error if id is invalid
   }
 
-  const sql = "DELETE FROM Owner WHERE owner_id = ?";
+
+  const sql = "DELETE FROM Owner WHERE owner_id = ?"; // Deletes from whichever id is selected
   db.query(sql, [ownerId], (err, result) => {
-    if (err) {
+    if (err) { // prints if there is a database error
       console.error("DB error in DELETE /api/owners/:id:", err);
       return res.status(500).json({ error: "Database error" });
     }
-    if (result.affectedRows === 0) {
+    if (result.affectedRows === 0) { // if there are no more rows left, we know the owner table is now empty
       return res.status(404).json({ error: "Owner not found" });
     }
-    res.json({ message: "Owner deleted" });
+    res.json({ message: "Owner deleted" }); // Prints a confirmation message underneath the table after deletion
   });
 });
 
-// ----- Pet CRUD -----
 
+// ----- Pet CRUD -----
+// We did not comment for this pet portion as it is repeptive to CRUD Owner
 app.get("/api/pets", requireLogin, (req, res) => {
   const sql = "SELECT * FROM Pet";
   db.query(sql, (err, rows) => {
@@ -320,11 +408,13 @@ app.get("/api/pets", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/pets/:id", requireLogin, (req, res) => {
   const petId = toInt(req.params.id);
   if (Number.isNaN(petId)) {
     return res.status(400).json({ error: "Invalid pet_id" });
   }
+
 
   const sql = "SELECT * FROM Pet WHERE pet_id = ?";
   db.query(sql, [petId], (err, rows) => {
@@ -339,11 +429,14 @@ app.get("/api/pets/:id", requireLogin, (req, res) => {
   });
 });
 
+
 app.post("/api/pets", requireRole("admin"), (req, res) => {
   const { pet_id, name, species, gender, owner_id } = req.body;
 
+
   const id = toInt(pet_id);
   const ownerId = toInt(owner_id);
+
 
   if (Number.isNaN(id) || Number.isNaN(ownerId)) {
     return res
@@ -356,6 +449,7 @@ app.post("/api/pets", requireRole("admin"), (req, res) => {
       .json({ error: "name, species, and gender are required" });
   }
 
+
   const sql =
     "INSERT INTO Pet (pet_id, name, species, gender, owner_id) VALUES (?, ?, ?, ?, ?)";
   db.query(sql, [id, name, species, gender, ownerId], (err) => {
@@ -367,14 +461,17 @@ app.post("/api/pets", requireRole("admin"), (req, res) => {
   });
 });
 
+
 app.put("/api/pets/:id", requireRole("admin"), (req, res) => {
   const petId = toInt(req.params.id);
   if (Number.isNaN(petId)) {
     return res.status(400).json({ error: "Invalid pet_id" });
   }
 
+
   const { name, species, gender, owner_id } = req.body;
   const ownerId = toInt(owner_id);
+
 
   if (Number.isNaN(ownerId)) {
     return res.status(400).json({ error: "owner_id must be an integer" });
@@ -384,6 +481,7 @@ app.put("/api/pets/:id", requireRole("admin"), (req, res) => {
       .status(400)
       .json({ error: "name, species, and gender are required" });
   }
+
 
   const sql =
     "UPDATE Pet SET name = ?, species = ?, gender = ?, owner_id = ? WHERE pet_id = ?";
@@ -399,11 +497,13 @@ app.put("/api/pets/:id", requireRole("admin"), (req, res) => {
   });
 });
 
+
 app.delete("/api/pets/:id", requireRole("admin"), (req, res) => {
   const petId = toInt(req.params.id);
   if (Number.isNaN(petId)) {
     return res.status(400).json({ error: "Invalid pet_id" });
   }
+
 
   const sql = "DELETE FROM Pet WHERE pet_id = ?";
   db.query(sql, [petId], (err, result) => {
@@ -418,8 +518,9 @@ app.delete("/api/pets/:id", requireRole("admin"), (req, res) => {
   });
 });
 
-// ----- Appointment CRUD -----
 
+// ----- Appointment CRUD -----
+// Once again, no comments for most of this portion as it is repepetive to Owner and Pet CRUD
 app.get("/api/appointments", requireLogin, (req, res) => {
   const sql = "SELECT * FROM Appointment";
   db.query(sql, (err, rows) => {
@@ -431,11 +532,13 @@ app.get("/api/appointments", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/appointments/:id", requireLogin, (req, res) => {
   const apptId = toInt(req.params.id);
   if (Number.isNaN(apptId)) {
     return res.status(400).json({ error: "Invalid appointment_id" });
   }
+
 
   const sql = "SELECT * FROM Appointment WHERE appointment_id = ?";
   db.query(sql, [apptId], (err, rows) => {
@@ -450,6 +553,7 @@ app.get("/api/appointments/:id", requireLogin, (req, res) => {
   });
 });
 
+
 app.post("/api/appointments", requireRole("admin"), (req, res) => {
   const {
     appointment_id,
@@ -461,9 +565,11 @@ app.post("/api/appointments", requireRole("admin"), (req, res) => {
     status,
   } = req.body;
 
+
   const id = toInt(appointment_id);
   const petId = toInt(pet_id);
   const vetId = toInt(vet_id);
+
 
   if (Number.isNaN(id) || Number.isNaN(petId) || Number.isNaN(vetId)) {
     return res.status(400).json({
@@ -476,6 +582,7 @@ app.post("/api/appointments", requireRole("admin"), (req, res) => {
         "appointment_date, appointment_time, reason, and status are required",
     });
   }
+
 
   const sql =
     "INSERT INTO Appointment (appointment_id, pet_id, vet_id, appointment_date, appointment_time, reason, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -494,11 +601,13 @@ app.post("/api/appointments", requireRole("admin"), (req, res) => {
   );
 });
 
+
 app.put("/api/appointments/:id", requireRole("admin"), (req, res) => {
   const apptId = toInt(req.params.id);
   if (Number.isNaN(apptId)) {
     return res.status(400).json({ error: "Invalid appointment_id" });
   }
+
 
   const {
     pet_id,
@@ -509,8 +618,10 @@ app.put("/api/appointments/:id", requireRole("admin"), (req, res) => {
     status,
   } = req.body;
 
+
   const petId = toInt(pet_id);
   const vetId = toInt(vet_id);
+
 
   if (Number.isNaN(petId) || Number.isNaN(vetId)) {
     return res.status(400).json({
@@ -523,6 +634,7 @@ app.put("/api/appointments/:id", requireRole("admin"), (req, res) => {
         "appointment_date, appointment_time, reason, and status are required",
     });
   }
+
 
   const sql =
     "UPDATE Appointment SET pet_id = ?, vet_id = ?, appointment_date = ?, appointment_time = ?, reason = ?, status = ? WHERE appointment_id = ?";
@@ -542,59 +654,56 @@ app.put("/api/appointments/:id", requireRole("admin"), (req, res) => {
   );
 });
 
-// ✅ UPDATED: delete treatments first, then appointment
+
 app.delete("/api/appointments/:id", requireRole("admin"), (req, res) => {
   const apptId = toInt(req.params.id);
   if (Number.isNaN(apptId)) {
     return res.status(400).json({ error: "Invalid appointment_id" });
   }
 
-  const deleteTreatmentsSql = "DELETE FROM Treatment WHERE appointment_id = ?";
 
-  db.query(deleteTreatmentsSql, [apptId], (err) => {
+  const sql = "DELETE FROM Appointment WHERE appointment_id = ?";
+  db.query(sql, [apptId], (err, result) => {
     if (err) {
-      console.error("Error deleting treatments for appointment:", err);
-      return res.status(500).json({ error: "Database error (treatments)" });
+      console.error("DB error in DELETE /api/appointments/:id:", err);
+      return res.status(500).json({ error: "Database error" });
     }
-
-    const deleteAppointmentSql =
-      "DELETE FROM Appointment WHERE appointment_id = ?";
-
-    db.query(deleteAppointmentSql, [apptId], (err, result) => {
-      if (err) {
-        console.error("DB error in DELETE /api/appointments/:id:", err);
-        return res.status(500).json({ error: "Database error" });
-      }
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: "Appointment not found" });
-      }
-      res.json({ message: "Appointment and related treatments deleted" });
-    });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+    res.json({ message: "Appointment deleted" });
   });
 });
 
-// ---------- Phase III: Visualization - Appointments per Month ----------
 
-app.get("/api/stats/appointments-per-month", requireLogin, (req, res) => {
+// ---------- Phase III: Visualization  ----------
+
+
+// This portion focuses on the appointments per month
+
+
+app.get("/api/stats/appointments-per-month", requireLogin, (req, res) => { // Only logged in users are able to control
   const sql = `
-    SELECT 
+    SELECT
       DATE_FORMAT(appointment_date, '%Y-%m') AS month,
       COUNT(*) AS count
     FROM Appointment
     GROUP BY month
     ORDER BY month;
-  `;
-
+  `; // This sorts using date YYYY-MM format
+    // Also counts the amount of appointments made
   db.query(sql, (err, rows) => {
     if (err) {
       console.error("DB error in /api/stats/appointments-per-month:", err);
       return res.status(500).json({ error: "Database error" });
     }
-    res.json(rows);
+    res.json(rows); // Will returun date and count of appointments
   });
 });
 
+
 // ---------- Phase III: Views (based on Phase II Part C) ----------
+
 
 app.get("/api/views/upcoming-appointments", requireLogin, (req, res) => {
   db.query("SELECT * FROM UpcomingAppointments", (err, rows) => {
@@ -606,6 +715,7 @@ app.get("/api/views/upcoming-appointments", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/views/top-cost-vets", requireLogin, (req, res) => {
   db.query("SELECT * FROM TopCostVets", (err, rows) => {
     if (err) {
@@ -615,6 +725,7 @@ app.get("/api/views/top-cost-vets", requireLogin, (req, res) => {
     res.json(rows);
   });
 });
+
 
 app.get("/api/views/owner-pet-counts", requireLogin, (req, res) => {
   db.query("SELECT * FROM OwnerPetCounts", (err, rows) => {
@@ -626,6 +737,7 @@ app.get("/api/views/owner-pet-counts", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/views/full-appointment-summary", requireLogin, (req, res) => {
   db.query("SELECT * FROM FullAppointmentSummary", (err, rows) => {
     if (err) {
@@ -635,6 +747,7 @@ app.get("/api/views/full-appointment-summary", requireLogin, (req, res) => {
     res.json(rows);
   });
 });
+
 
 app.get("/api/views/active-pets", requireLogin, (req, res) => {
   db.query("SELECT * FROM ActivePets", (err, rows) => {
@@ -646,6 +759,7 @@ app.get("/api/views/active-pets", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/views/top-medications", requireLogin, (req, res) => {
   db.query("SELECT * FROM TopMedications", (err, rows) => {
     if (err) {
@@ -655,6 +769,7 @@ app.get("/api/views/top-medications", requireLogin, (req, res) => {
     res.json(rows);
   });
 });
+
 
 app.get("/api/views/multi-service-pets", requireLogin, (req, res) => {
   db.query("SELECT * FROM MultiServicePets", (err, rows) => {
@@ -666,6 +781,7 @@ app.get("/api/views/multi-service-pets", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/views/multi-pet-owners", requireLogin, (req, res) => {
   db.query("SELECT * FROM MultiPetOwners", (err, rows) => {
     if (err) {
@@ -675,6 +791,7 @@ app.get("/api/views/multi-pet-owners", requireLogin, (req, res) => {
     res.json(rows);
   });
 });
+
 
 app.get("/api/views/avg-treatment-cost-per-vet", requireLogin, (req, res) => {
   db.query("SELECT * FROM AvgTreatmentCostPerVet", (err, rows) => {
@@ -686,6 +803,7 @@ app.get("/api/views/avg-treatment-cost-per-vet", requireLogin, (req, res) => {
   });
 });
 
+
 app.get("/api/views/inactive-pets", requireLogin, (req, res) => {
   db.query("SELECT * FROM InactivePets", (err, rows) => {
     if (err) {
@@ -696,20 +814,24 @@ app.get("/api/views/inactive-pets", requireLogin, (req, res) => {
   });
 });
 
+
 // ---------- Search & Filter endpoints ----------
 
-// Owners search by name/email (single q param)
+
+
+
 app.get("/api/owners/search", requireLogin, (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) {
     return res.json([]);
   }
 
+
   const like = `%${q}%`;
   const sql = `
     SELECT *
     FROM Owner
-    WHERE first_name LIKE ? 
+    WHERE first_name LIKE ?
        OR last_name LIKE ?
        OR email LIKE ?
   `;
@@ -722,12 +844,15 @@ app.get("/api/owners/search", requireLogin, (req, res) => {
   });
 });
 
+
 // Appointments filter by status and/or date range
 app.get("/api/appointments/search", requireLogin, (req, res) => {
   const { status, from, to } = req.query;
 
+
   let sql = "SELECT * FROM Appointment WHERE 1=1";
   const params = [];
+
 
   if (status) {
     sql += " AND status = ?";
@@ -742,7 +867,9 @@ app.get("/api/appointments/search", requireLogin, (req, res) => {
     params.push(to);
   }
 
+
   sql += " ORDER BY appointment_date, appointment_time";
+
 
   db.query(sql, params, (err, rows) => {
     if (err) {
@@ -753,105 +880,183 @@ app.get("/api/appointments/search", requireLogin, (req, res) => {
   });
 });
 
-// ---------- Phase III: External API Integration + WeatherLog ----------
+
+
+
+
+
+// ---------- Phase III: External API Integration (PetCare Community Feed) ----------
 //
-// Uses Open-Meteo (no API key required) and saves into WeatherLog table.
+// Stores pet-related social media posts into SocialLog.
 
-app.post("/api/weather/fetch", requireLogin, async (req, res, next) => {
+
+app.post("/api/social/fetch", requireLogin, async (req, res) => {
   try {
-    const cityRaw = (req.body.city || "Toronto").trim();
-    const key = cityRaw.toLowerCase();
-    const coords = CITY_COORDS[key];
+    const platform = "PetCare Community Feed";
 
-    if (!coords) {
-      return res
-        .status(400)
-        .json({ error: "Unsupported city for this demo" });
-    }
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current_weather=true`;
+    // External fake social media API
+    const response = await axios.get("https://dummyjson.com/posts?limit=5");
+    const posts = response.data.posts; // [{ userId, id, title, body }]
 
-    const weatherResp = await axios.get(url);
-    const current = weatherResp.data.current_weather;
 
-    if (!current) {
-      return res.status(502).json({ error: "No current weather data returned" });
-    }
+    const insertSql =
+      "INSERT INTO SocialLog (platform, title, username) VALUES (?, ?, ?)";
 
-    const temperature = current.temperature;
-    const windspeed = current.windspeed;
 
-    const sql =
-      "INSERT INTO WeatherLog (city, temperature_c, windspeed) VALUES (?, ?, ?)";
-    db.query(sql, [cityRaw, temperature, windspeed], (err) => {
-      if (err) {
-        console.error("DB error in POST /api/weather/fetch:", err);
-        return res.status(500).json({ error: "Database error" });
-      }
+    for (const post of posts) {
+      const username = `PetOwner-${post.userId}`;
+      const title = `PetCare Post: ${post.title}`;
 
-      res.status(201).json({
-        message: "Weather fetched and saved",
-        data: {
-          city: cityRaw,
-          temperature_c: temperature,
-          windspeed,
-        },
+
+      await new Promise((resolve, reject) => {
+        db.query(insertSql, [platform, title, username], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       });
+    }
+
+
+    res.json({
+      message: "PetCare community posts fetched and saved",
+      count: posts.length,
+      platform,
     });
   } catch (err) {
-    console.error("Error in /api/weather/fetch:", err);
-    next(err);
+    console.error("Error in /api/social/fetch:", err);
+    res.status(500).json({ error: "Failed to fetch PetCare posts" });
   }
 });
 
-app.get("/api/weather/logs", requireLogin, (req, res) => {
+
+// GET stored social posts
+app.get("/api/social/logs", requireLogin, (req, res) => {
   const sql =
-    "SELECT id, city, temperature_c, windspeed, logged_at FROM WeatherLog ORDER BY logged_at DESC LIMIT 50";
+    "SELECT id, platform, title, username, logged_at FROM SocialLog ORDER BY logged_at DESC LIMIT 50";
+
+
   db.query(sql, (err, rows) => {
     if (err) {
-      console.error("DB error in GET /api/weather/logs:", err);
+      console.error("DB error in GET /api/social/logs:", err);
       return res.status(500).json({ error: "Database error" });
     }
     res.json(rows);
   });
 });
 
-// ---------- Phase III: Data Export (CSV) ----------
-//
-// Exports Owner data as CSV via a backend endpoint.
 
+
+
+// -External API Integration (PetCare Community Feed)
+//
+// Pet related Social Meida
+
+
+app.post("/api/social/fetch", requireLogin, async (req, res) => {
+  try {
+    const platform = "PetCare Community Feed";
+
+
+   
+    const response = await axios.get("https://dummyjson.com/posts?limit=5");
+    const posts = response.data.posts; // [{ userId, id, title, body }]
+
+
+    // Nice, pet-related titles we control
+    const petTitles = [
+      "PetCare Tip: Daily walking routine for dogs",
+      "PetCare Story: Milo the cat’s first vet visit",
+      "PetCare Tip: How to keep your pet calm during checkups",
+      "PetCare Update: Grooming reminders for long-hair pets",
+      "PetCare Tip: Vaccination schedule for puppies and kittens"
+    ];
+
+
+    const insertSql =
+      "INSERT INTO SocialLog (platform, title, username) VALUES (?, ?, ?)";
+
+
+    let i = 0;
+    for (const post of posts) {
+      const username = `PetOwner-${post.userId}`;
+      const title = petTitles[i % petTitles.length]; // cycle through pet titles
+      i++;
+
+
+      await new Promise((resolve, reject) => {
+        db.query(insertSql, [platform, title, username], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
+    }
+
+
+    res.json({
+      message: "PetCare community posts fetched and saved",
+      count: posts.length,
+      platform,
+    });
+  } catch (err) {
+    console.error("Error in /api/social/fetch:", err);
+    res.status(500).json({ error: "Failed to fetch PetCare posts" });
+  }
+});
+
+
+// ---------- CSV Export: Owners ----------
+
+
+// ---------- CSV Export: Owners ----------
 app.get("/api/export/owners.csv", requireRole("admin"), (req, res) => {
   const sql = "SELECT * FROM Owner";
+
+
   db.query(sql, (err, rows) => {
     if (err) {
       console.error("DB error in GET /api/export/owners.csv:", err);
       return res.status(500).json({ error: "Database error" });
     }
 
-    res.header("Content-Type", "text/csv");
 
-    if (rows.length === 0) {
+    // Tell browser this is CSV + attachment
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="owners.csv"');
+
+
+    // If no rows, just send header line
+    if (!rows || rows.length === 0) {
       return res.send("owner_id,first_name,last_name,phone,email,address\n");
     }
 
+
+    // Build CSV using the helper you already defined
     const headers = Object.keys(rows[0]);
     const lines = [];
 
+
+    // Header row
     lines.push(headers.join(","));
 
-    rows.forEach((row) => {
+
+    // Data rows
+    for (const row of rows) {
       const values = headers.map((h) => toCsvValue(row[h]));
       lines.push(values.join(","));
-    });
+    }
+
 
     const csv = lines.join("\n");
-
-    res.attachment("owners.csv");
     res.send(csv);
   });
 });
 
+
+
+
 // ---------- Phase III: Error Handling ----------
+
 
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
@@ -861,8 +1066,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
+
+
+
 // ---------------- Start server ----------------
+
 
 app.listen(PORT, () => {
   console.log(`PetCarePlus backend running on http://localhost:${PORT}`);
 });
+
